@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from typing import List
 from pymongo import MongoClient
+from starlette.responses import StreamingResponse
 import os
+import io
+from bson.objectid import ObjectId
 from urllib.parse import quote_plus
 
 from models.person import Person
@@ -19,9 +22,29 @@ def get_client():
     return mongo_client
 
 
-@app.get('/', response_model=List[Person])
+@app.get('/person', response_model=List[Person])
 async def root():
     client = get_client()
     db = client["mydatabase"]
     col = db["people"]
-    return list(col.find({}))
+    return list(col.find({}, {"photo": 0}))
+
+
+@app.get("/person/{item_id}", response_model=Person)
+async def read_item(item_id):
+    obj_id = ObjectId(item_id)
+    client = get_client()
+    db = client["mydatabase"]
+    col = db["people"]
+    person = col.find_one(obj_id, {"photo": 0})
+    return person
+
+
+@app.get("/person/{item_id}/photo")
+async def read_item(item_id):
+    obj_id = ObjectId(item_id)
+    client = get_client()
+    db = client["mydatabase"]
+    col = db["people"]
+    file_bytes = col.find_one(obj_id)['photo']
+    return StreamingResponse(io.BytesIO(file_bytes), media_type="image/png")
